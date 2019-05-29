@@ -3,13 +3,16 @@ package com.meteor;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Iterator;
+import java.util.List;
 
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -17,16 +20,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class HttpCrawlerRunner implements ApplicationRunner{
 
+	private final Logger logger = org.slf4j.LoggerFactory.getLogger(HttpCrawlerRunner.class);
+	
+	private String parentDir;
+	
 	@Override
 	public void run(ApplicationArguments args) throws Exception {
-		String url = "https://google.com";
 		
-		Document doc = Jsoup.connect(url).get();
-
+		List<String> urls = args.getOptionValues("url");
 		
-		printImage(doc);
+		List<String> dir = args.getOptionValues("dir");
+		if(urls==null || dir==null) {
+			//추후 메시지 처리 해야
+			return;
+		}
+		parentDir = dir.get(0); 
 		
-		System.out.println("asdasd");
+		for(String url : urls) {
+			Document doc = Jsoup.connect(url).get();
+			printImage(doc, url);
+		}
 		
 	}
 	
@@ -37,6 +50,7 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 		String fileName = urls[urls.length-1];
 		fileName = fileName.split("\\?")[0];
 		Response res = Jsoup.connect(url)
+				.followRedirects(true)
 				.ignoreContentType(true)
 				.execute();
 		
@@ -46,7 +60,8 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 	}
 	private void writeFile(String fileName, byte[] bytes) throws IOException {
 		StringBuilder stb = new StringBuilder();
-		stb.append("C://com/work/temp/");
+		stb.append(parentDir);
+		stb.append("/");
 		stb.append(fileName);
 		File file = new File(stb.toString());
 		if(!file.exists()) {
@@ -58,21 +73,49 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 		fileOutputStream.close();
 	}
 	
-	private void printImage(Document doc) throws IOException {
-		System.out.println("========printImage=========");
+	private String getContextPath(String parentUrl) {
+		int lastIdx = parentUrl.lastIndexOf("/");
+		String sub = parentUrl.substring(0,lastIdx);
+		sub += "/";
+		return sub;
+	}
+	private String getRootPath(String parentUrl) {
+		
+		String tempUrls[] = parentUrl.split("//");
+		
+		String rootPath = tempUrls[1].split("/")[0];
+		rootPath = tempUrls[0]+"//" + rootPath;
+//		rootPath += "/";
+		return rootPath;
+	}
+	
+	private void printImage(Document doc, String parentUrl) throws IOException {
 		Elements elements = doc.select("img");
 		Iterator<Element> iter = elements.iterator();
-		
+		String parentUrlContextPath = getContextPath(parentUrl);
+		String rootPath = getRootPath(parentUrl);
 		while(iter.hasNext()) {
 			Element ele = iter.next();
 			String src = ele.attr("data-src");
 			if(src==null || "".equals(src)) {
 				src = ele.attr("src");	
 			}
+			if(src.startsWith("http")) {
+				 
+			}else if(src.startsWith("/")) {
+				src = rootPath + src;
+			}else {
+				src = parentUrlContextPath + src;
+			}
 			
-			System.out.println( String.format("[%s]%s", src, ele.toString()) );
+			
+			
+			
+			logger.info(String.format("[%s]%s", src, ele.toString()));
 			
 			try {
+				
+				
 				String fileName = downloadImage(src); 
 				ele.attr("src", fileName);	
 			} catch (IOException e) {
@@ -81,10 +124,8 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 			}
 			
 		}
-		
 		writeFile("par.html", doc.html().getBytes());
 		
-//		doc.select("img").forEach(System.out::println);
 	}
 	
 
