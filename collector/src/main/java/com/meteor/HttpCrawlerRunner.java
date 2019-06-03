@@ -89,11 +89,20 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 		return rootPath;
 	}
 	
+	private String getLastPath(String parentUrl) {
+		
+		String tempUrls[] = parentUrl.split("//");
+		
+		String lastPath = tempUrls[tempUrls.length];
+		return lastPath;
+	}
+	
 	private void printImage(Document doc, String parentUrl) throws IOException {
 		Elements elements = doc.select("img");
 		Iterator<Element> iter = elements.iterator();
 		String parentUrlContextPath = getContextPath(parentUrl);
 		String rootPath = getRootPath(parentUrl);
+		String lastPath = getLastPath(parentUrl);
 		while(iter.hasNext()) {
 			Element ele = iter.next();
 			String src = ele.attr("data-src");
@@ -124,7 +133,12 @@ public class HttpCrawlerRunner implements ApplicationRunner{
 			}
 			
 		}
-		writeFile("par.html", doc.html().getBytes());
+		if(lastPath.contains(".html")) {
+			writeFile(lastPath, doc.html().getBytes());	
+		}else {
+			writeFile(lastPath+".html", doc.html().getBytes());
+		}
+		
 		
 	}
 	
